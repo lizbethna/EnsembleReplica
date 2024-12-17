@@ -1,0 +1,93 @@
+---
+title: "Data Simulation"
+date: "Simulation-based settings"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Article:** Lizbeth Naranjo, Carlos J. Perez, Daniel F. Merino (2025). 
+A data ensemble-based approach for detecting vocal disorders using replicated acoustic biomarkers from electroglottography.  
+*Sensing and Bio-Sensing Research Journal*, vol, num, pages. 
+
+# Simulation-based settings 
+
+The generation process for this three-class classification problem is adapted to introduce replications in the explanatory variables. 
+The covariates $x_{ikj}$ are generated from the algorithm 3, considering $n = 300$ subjects, $i = 1,\ldots,n$, $K = 21$ predictor variables,  $k = 1,\ldots,K$, and $J = 3$ replicated measures, $j = 1,\ldots, J$. 
+Note that Algorithm 3 simulates the same number of subjects for each class or category $C$, this number is fixed for each class. 
+This procedure enables the simulation of a dataset with many covariates and replicated measures. 
+
+```{r, echo=TRUE, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, cache=FALSE, results=TRUE,  comment=""}   
+## change the address where the file will be saved 
+address = "~/Documents/GitHub/" 
+```
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+set.seed(12345) ## seed 
+G = 3   ## number of classes or groups 
+n = 300   ## sample size 
+m = n/G   ## n/G = sample size / number of classes 
+K = 21   ## predictor variables 
+J = 3   ## number of replicated measures 
+
+## shifted triangular waveforms functions: 
+v1 <- function(k){ max(6-abs(k-11),0) }
+v2 <- function(k){ v1(k-4) }
+v3 <- function(k){ v1(k+4) }
+
+## function for predictors variables with replications 
+predictors <- function(K,G){ 
+  u = runif(1) 
+  eps = rnorm(K)  
+  x = matrix(NA,G,K)
+  for(k in 1:K){ 
+    x[1,k] = u*v1(k) + (1-u)*v2(k) + eps[k]   ## predictors for class 1
+    x[2,k] = u*v1(k) + (1-u)*v3(k) + eps[k]   ## predictors for class 2
+    x[3,k] = u*v2(k) + (1-u)*v3(k) + eps[k]   ## predictors for class 3
+  } 
+  y = c(1,2,3)   ## response variable 
+  return(list(x=x,y=y)) 
+}
+
+Ytrue = matrix(NA,n)   ## response variable 
+X = array(NA,dim=c(n*J,K))   ## K explanatory variables with J replications 
+colnames(X) = paste0("V",c(1:K))
+ID = rep(NA,n*J)   ## ID of the subject 
+Rep = rep(NA,n*J)   ## ID for the replication  
+
+aux = 0
+for(i in 1:m){
+  for(j in 1:J){
+    train <- predictors(K,G)   ## generate variables with replications 
+    for(h in 1:G){
+      aux = aux+1
+      Ytrue[aux] = train$y[h]   
+      X[aux,] = train$x[h,]  
+      ID[aux] = G*(i-1)+h  
+      Rep[aux] = j   
+} } }
+Y = factor(Ytrue)   ## categorical response variable 
+```
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+pairs(X[,1:7], col=Ytrue,cex=0.5)
+```
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+pairs(X[,8:14], col=Ytrue,cex=0.5)
+```
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+pairs(X[,15:21], col=Ytrue,cex=0.5)
+```
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+## Save the data 
+data = data.frame(X,ID,rep=Rep, status=Y)
+head(data)
+write.table(data,paste0(address,"data_simulated.csv"),row.names=FALSE,sep=";",dec=".")
+```
