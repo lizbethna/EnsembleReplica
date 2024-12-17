@@ -1,0 +1,474 @@
+---
+title: "Support Vector Machine (SVM) with Linear kernel"
+author: "Replication-based stagewise additive modeling (RSAM)"
+date: "EGG data-based experiments"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Article:** Lizbeth Naranjo, Carlos J. Perez, Daniel F. Merino (2025). 
+A data ensemble-based approach for detecting vocal disorders using replicated acoustic biomarkers from electroglottography.  
+*Sensing and Bio-Sensing Research Journal*, vol, num, pages. 
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment=""}   
+library(tidyverse) 
+library(e1071)
+## change the address where the file will be saved 
+address = "~/Documents/GitHub/" 
+setwd("~/Documents/GitHub/") 
+```
+
+# EGG data-based experiments 
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"}  
+## Comment or uncomment the options: EGG-a, EGG-i, EGG-u
+```
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"}  
+## EGG-a
+## datos2 <- read.csv(paste0(address,"a_egg_saarbrucken.csv"),
+##                   sep = ";",header=TRUE, dec=",")
+
+## name of the files to save results
+## archivo = "RSAM_crossval_strata_allvar_SVM_linear_Saarbruken_egg_a" 
+```
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"}  
+## EGG-i
+datos2 <- read.csv(paste0(address,"i_egg_saarbrucken.csv"),
+                   sep = ";",header=TRUE, dec=",")
+
+## name of the files to save results
+archivo = "RSAM_crossval_strata_allvar_SVM_linear_Saarbruken_egg_i" 
+```
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"}  
+## EGG-u
+## datos2 <- read.csv(paste0(address,"u_egg_saarbrucken.csv"),
+##                   sep = ";",header=TRUE, dec=",")
+
+## name of the files to save results
+## archivo = "RSAM_crossval_strata_allvar_SVM_linear_Saarbruken_egg_u" 
+```
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"}  
+dim(datos2)
+summary(datos2)
+head(datos2)
+```
+
+\newpage
+## Re-Scale explanatory variables 
+
+```{r, eval=TRUE, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE, cache=FALSE, results=TRUE,  comment="", out.width="100%"} 
+## Scale the variables
+datos2 <- as.data.frame(datos2)
+datos2$STATUS_fact = as.factor(as.numeric(factor(datos2$status_fact)))
+
+table(datos2$STATUS_fact)
+
+datos <- transform(datos2,  
+sJITTER= scale(JITTER), sSHIMMER= scale(SHIMMER), sCPP= scale(CPP), 
+sD2= scale(D2), sFZCF= scale(FZCF), sGNE= scale(GNE), 
+sHNR= scale(HNR), sHURST= scale(HURST), sLZ= scale(LZ),
+sMFCC0= scale(MFCC0),  
+sMFCC1= scale(MFCC1), sMFCC2= scale(MFCC2), sMFCC3= scale(MFCC3), 
+sMFCC4= scale(MFCC4), sMFCC5= scale(MFCC5), sMFCC6= scale(MFCC6), 
+sMFCC7= scale(MFCC7), sMFCC8= scale(MFCC8), sMFCC9= scale(MFCC9), 
+sMFCC10= scale(MFCC10), sMFCC11= scale(MFCC11), sMFCC12= scale(MFCC12),  
+sPERMUTATION= scale(PERMUTATION), sPPE= scale(PPE), sSHANNON= scale(SHANNON),
+sZCR= scale(ZCR), 
+senergyentropy= scale(energyentropy), sspectralcentroid= scale(spectralcentroid), 
+sspectralspread= scale(spectralspread), sspectralentropy= scale(spectralentropy), 
+sspectralrolloff= scale(spectralrolloff), sRPDE= scale(RPDE)) 
+
+datos$ID_fact = rep(1:225,each=3)
+
+dim(datos)
+
+## data set 
+trainc <- datos %>% select(
+sJITTER, sSHIMMER, sCPP, sD2, sFZCF, 
+sGNE, sHNR, sHURST, sLZ, sMFCC0, 
+sMFCC1, sMFCC2, sMFCC3, sMFCC4, sMFCC5, 
+sMFCC6, sMFCC7, sMFCC8, sMFCC9, sMFCC10, 
+sMFCC11, sMFCC12, 
+sPERMUTATION, sPPE, sSHANNON, sZCR, 
+senergyentropy, sspectralcentroid, sspectralspread, 
+sspectralentropy, sspectralrolloff, sRPDE,
+STATUS_fact,SEX, rep,ID_fact)  
+```
+
+\clearpage 
+# Crossvalidation 
+
+## Training and testing data subsets  
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+## Select data: 75% training & 25% testing stratified per category
+SIM = 100   ## repeat N times the cross-validation process
+N = 225   ## sample size 
+Nfit = 168   ## sample size for training subset
+Ntest = 57   ## sample size for testing subset
+Ncat = 75   ## sample size per category
+Ncatfit = 56   ## training per category 
+Ncattest = 19   ## testing per category
+FIT <- matrix(0,SIM,Nfit)   ## training subsets 
+TEST <- matrix(0,SIM,Ntest)   ## testing subsets 
+
+categoria = trainc %>% filter(rep==1) %>% select(STATUS_fact)
+categoria = as.numeric(categoria$STATUS_fact)
+id = 1:N
+set.seed(12345)
+for(si in 1:SIM){
+  for(j in 1:3){ 
+    idcat = id[categoria==j]   ## stratified per category j
+    ran0 = sample(idcat, size=Ncatfit, replace=FALSE)
+    
+    FIT[si,(j-1)*Ncatfit+1:Ncatfit] <- sort(ran0)
+    TEST[si,(j-1)*Ncattest+1:Ncattest] <- setdiff(idcat,ran0)
+} }
+```
+
+\clearpage 
+## Classification metrics for models predicting nominal outcomes 
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+## Functions to compute classification metrics 
+## Ytrue = true response variable
+## Ypred = predicted outcome
+## cat = category 
+## TP = true positive 
+## TN = true negative
+## FP = false positive 
+## FN = false negative 
+
+## Function to compute the precision per class=cat
+fn_precision_class <- function(Ytrue,Ypred,cat){ 
+  TP = sum(Ypred[Ytrue==cat]==cat)
+  FP = sum(Ypred[Ytrue!=cat]==cat)
+  precision = TP/(TP+FP)
+  return(precision)
+}
+
+## Function to compute the recall per class=cat
+fn_recall_class <- function(Ytrue,Ypred,cat){ ## cat==category
+  TP = sum(Ypred[Ytrue==cat]==cat)
+  FN = sum(Ypred[Ytrue==cat]!=cat)
+  recall = TP/(TP+FN)  
+  return(recall)
+}
+
+## Function to compute the F1-score per class=cat
+fn_f1score_class <- function(Ytrue,Ypred,cat){ ## cat==category
+  TP = sum(Ypred[Ytrue==cat]==cat)
+  FP = sum(Ypred[Ytrue!=cat]==cat)
+  FN = sum(Ypred[Ytrue==cat]!=cat)
+  precision = TP/(TP+FP)
+  recall = TP/(TP+FN)  
+  f1score = 2*(precision*recall)/(precision+recall)
+  return(f1score)
+}
+
+## To save classification metrics 
+## Fitxxx: metric for training subset. Testxxx: metric for testing subset
+FitAccuracy = TestAccuracy <- array(NA,dim=c(SIM,4))  ## Accuracy Rate
+FitPrecisionClass = TestPrecisionClass <- array(NA,dim=c(SIM,4,3))  ## Precision per class
+FitRecallClass = TestRecallClass <- array(NA,dim=c(SIM,4,3))  ## Recall per class
+FitF1ScoreClass = TestF1ScoreClass <- array(NA,dim=c(SIM,4,3))  ## F1-score per class
+FitPrecisionMacroAve = TestPrecisionMacroAve <- array(NA,dim=c(SIM,4))  ## Precision Macro Average
+FitRecallMacroAve = TestRecallMacroAve <- array(NA,dim=c(SIM,4))  ## Recall Macro Average
+FitF1ScoreMacroAve = TestF1ScoreMacroAve <- array(NA,dim=c(SIM,4))  ## F1-score Macro Average
+```
+
+\clearpage 
+## Model estimation  
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+##--------------------------------------------------
+for(sim in 1:SIM){ ## BEGIN sim
+##--------------------------------------------------
+my_fit = FIT[sim,]   ## training subset 
+my_test = TEST[sim,]   ## testing subset 
+
+## Training data subset 
+train1 <- trainc %>% filter(ID_fact%in%my_fit, rep==1)  ## repetition=1
+train2 <- trainc %>% filter(ID_fact%in%my_fit, rep==2)  ## repetition=2 
+train3 <- trainc %>% filter(ID_fact%in%my_fit, rep==3)  ## repetition=3 
+
+Yc = train1$STATUS_fact   ## categorical response variable for training
+n = length(Yc)  
+G = 3 # classes
+
+## Testing data subset
+test1 <- trainc %>% filter(ID_fact%in%my_test, rep==1)  ## repetition=1
+test2 <- trainc %>% filter(ID_fact%in%my_test, rep==2)  ## repetition=2
+test3 <- trainc %>% filter(ID_fact%in%my_test, rep==3)  ## repetition=3
+
+Yc.new = test1$STATUS_fact   ## categorical response variable for testing 
+n.new = length(Yc.new)
+
+## Delete variables which are not used 
+train1 <- train1 %>% select(-c(rep,ID_fact))
+train2 <- train2 %>% select(-c(rep,ID_fact))
+train3 <- train3 %>% select(-c(rep,ID_fact))
+test1 <- test1 %>% select(-c(rep,ID_fact,STATUS_fact))
+test2 <- test2 %>% select(-c(rep,ID_fact,STATUS_fact))
+test3 <- test3 %>% select(-c(rep,ID_fact,STATUS_fact))
+
+##--------------------------------------------------
+## Algorithm RSAM
+## Replication-based stagewise additive modeling
+##--------------------------------------------------
+
+## Algo1: Initialize the observation weights $w_i=1/n$, $i=1,...,n$ 
+wi1 = rep(1/n,n)
+
+## Algo2: BEGIN for replication j=1 to J do:
+   
+## REPLICATION j=1: 
+## Algo3: Fit a classifier $T(xj,z)$ to the training data using weights $wi$
+mod1 <- tune( "svm",  STATUS_fact ~ . ,
+              data = train1,
+              weights = wi1,
+              kernel = "linear",
+              ranges = list(cost=c(0.01,0.1,0.5,1,5,10,20,50)) )
+## summary(mod1)
+mejor_mod1 <- mod1$best.model
+## Predictions
+pred1 <- predict(mejor_mod1, newdata = train1)
+
+## Algo4: Compute $err = \sum wi I[Y != T(xj,z)] / \sum wi$
+err1 <- (sum(wi1*(Yc!=pred1))) / sum(wi1)
+## Algo5: Compute $alpha = log (1-err)/err +log(G-1)$
+alp1 <- log((1-err1)/err1) + log(G-1)
+alp1 <- ifelse(is.finite(alp1), alp1, log(G-1))
+## Algo6: Set wi = wi* exp(alpha*I[Y \neq T(xj,z)])
+wi2 = wi1*exp(alp1*(Yc!=pred1))
+## Algo7: Re-normalize wi
+wi2 = c(wi2/sum(wi2))
+
+##--------------------------------------------------
+## REPLICATION j=2: 
+## Algo3: Fit a classifier $T(xj,z)$ to the training data using weights $wi$
+mod2 <- tune( "svm",  STATUS_fact ~ . ,
+              data = train2,
+              weights = wi2,
+              kernel = "linear",
+              ranges = list(cost=c(0.01,0.1,0.5,1,5,10,20,50)) )
+## summary(mod2)
+mejor_mod2 <- mod2$best.model
+## Predictions
+pred2 <- predict(mejor_mod2, newdata = train2)
+
+## Algo4: Compute $err = \sum wi I[Y != T(xj,z)] / \sum wi$
+err2 <- (sum(wi2*(Yc!=pred2))) / sum(wi2)
+## Algo5: Compute $alpha = log (1-err)/err +log(G-1)$
+alp2 <- log((1-err2)/err2) + log(G-1)
+alp2 <- ifelse(is.finite(alp2), alp2, log(G-1))
+## Algo6: Set wi = wi* exp(alpha*I[Y \neq T(xj,z)])
+wi3 = wi2*exp(alp2*(Yc!=pred2))
+## Algo7: Re-normalize wi
+wi3 = c(wi3/sum(wi3))
+
+##--------------------------------------------------
+## REPLICATION j=3: 
+## Algo3: Fit a classifier $T(xj,z)$ to the training data using weights $wi$
+mod3 <- tune( "svm",  STATUS_fact ~ . ,
+              data = train3,
+              weights = wi3,
+              kernel = "linear",
+              ranges = list(cost=c(0.01,0.1,0.5,1,5,10,20,50)) )
+## summary(mod3)
+mejor_mod3 <- mod3$best.model
+## Predictions
+pred3 <- predict(mejor_mod3, newdata = train3)
+
+## Algo4: Compute $err = \sum wi I[Y != T(xj,z)] / \sum wi$
+err3 <- (sum(wi3*(Yc!=pred3))) / sum(wi3)
+## Algo5: Compute $alpha = log (1-err)/err +log(G-1)$
+alp3 <- log((1-err3)/err3) + log(G-1) 
+alp3 <- ifelse(is.finite(alp3), alp3, log(G-1))
+## Algo6: Set wi = wi* exp(alpha*I[Y \neq T(xj,z)])
+wi4 = wi3*exp(alp3*(Yc!=pred3))
+## Algo7: Re-normalize wi
+wi4 = c(wi4/sum(wi4))
+
+## Algo8: End for replication j=1 to J
+##--------------------------------------------------
+
+## Algo9: Output T*(x,z) = arg max_G \sum_j alpha*I[T(xj,z)=G]
+
+pred = cbind(pred1,pred2,pred3)  
+alpha = c(alp1,alp2,alp3)
+
+argclase = matrix(NA,n,3)
+clase = rep(NA,n)
+for(i in 1:n){
+  argclase[i,1] = sum(alpha*(pred[i,]==1)) 
+  argclase[i,2] = sum(alpha*(pred[i,]==2)) 
+  argclase[i,3] = sum(alpha*(pred[i,]==3)) 
+  clase[i] = which(argclase[i,]==max(argclase[i,]))
+}
+
+##--------------------------------------------------
+## Predict new subjects for testing subsets  
+pred1.new <- predict(mejor_mod1, newdata = test1)
+pred2.new <- predict(mejor_mod2, newdata = test2)
+pred3.new <- predict(mejor_mod3, newdata = test3)
+
+pred.new = cbind(pred1.new,pred2.new,pred3.new)  
+
+argclase.new = matrix(NA,n.new,3)
+clase.new = rep(NA,n.new)
+for(i in 1:n.new){
+  argclase.new[i,1] = sum(alpha*(pred.new[i,]==1)) 
+  argclase.new[i,2] = sum(alpha*(pred.new[i,]==2)) 
+  argclase.new[i,3] = sum(alpha*(pred.new[i,]==3)) 
+  clase.new[i] = which(argclase.new[i,]==max(argclase.new[i,]))
+}
+##--------------------------------------------------
+## End RSAM
+##--------------------------------------------------
+## Classification Metrics for models predicting nominal outcomes
+
+## Accuracy Rate
+FitAccuracy[sim,] = c(sum(Yc==pred1)/n, 
+                      sum(Yc==pred2)/n, 
+                      sum(Yc==pred3)/n, 
+                      sum(Yc==clase)/n) 
+
+TestAccuracy[sim,] = c(sum(Yc.new==pred1.new)/n.new, 
+                       sum(Yc.new==pred2.new)/n.new, 
+                       sum(Yc.new==pred3.new)/n.new, 
+                       sum(Yc.new==clase.new)/n.new) 
+
+## Precision
+for(cate in 1:3){
+  FitPrecisionClass[sim,1, cate] = fn_precision_class(Yc, pred1, cate)
+  FitPrecisionClass[sim,2, cate] = fn_precision_class(Yc, pred2, cate)
+  FitPrecisionClass[sim,3, cate] = fn_precision_class(Yc, pred3, cate)
+  FitPrecisionClass[sim,4, cate] = fn_precision_class(Yc, clase, cate)
+
+  TestPrecisionClass[sim,1, cate] = fn_precision_class(Yc.new, pred1.new, cate)
+  TestPrecisionClass[sim,2, cate] = fn_precision_class(Yc.new, pred2.new, cate)
+  TestPrecisionClass[sim,3, cate] = fn_precision_class(Yc.new, pred3.new, cate)
+  TestPrecisionClass[sim,4, cate] = fn_precision_class(Yc.new, clase.new, cate)
+}
+for(rep in 1:4){
+  FitPrecisionMacroAve[sim, rep] = mean(FitPrecisionClass[sim, rep,])
+  TestPrecisionMacroAve[sim,rep] = mean(TestPrecisionClass[sim,rep,])
+}
+
+## Recall
+for(cate in 1:3){
+  FitRecallClass[sim,1, cate] = fn_recall_class(Yc, pred1, cate)
+  FitRecallClass[sim,2, cate] = fn_recall_class(Yc, pred2, cate)
+  FitRecallClass[sim,3, cate] = fn_recall_class(Yc, pred3, cate)
+  FitRecallClass[sim,4, cate] = fn_recall_class(Yc, clase, cate)
+  
+  TestRecallClass[sim,1, cate] = fn_recall_class(Yc.new, pred1.new, cate)
+  TestRecallClass[sim,2, cate] = fn_recall_class(Yc.new, pred2.new, cate)
+  TestRecallClass[sim,3, cate] = fn_recall_class(Yc.new, pred3.new, cate)
+  TestRecallClass[sim,4, cate] = fn_recall_class(Yc.new, clase.new, cate)
+}
+for(rep in 1:4){
+  FitRecallMacroAve[sim, rep] = mean(FitRecallClass[sim, rep,])
+  TestRecallMacroAve[sim,rep] = mean(TestRecallClass[sim,rep,])
+}
+
+## F1-Score
+for(cate in 1:3){
+  FitF1ScoreClass[sim,1, cate]= fn_f1score_class(Yc, pred1, cate)
+  FitF1ScoreClass[sim,2, cate]= fn_f1score_class(Yc, pred2, cate)
+  FitF1ScoreClass[sim,3, cate]= fn_f1score_class(Yc, pred3, cate)
+  FitF1ScoreClass[sim,4, cate]= fn_f1score_class(Yc, clase, cate)
+
+  TestF1ScoreClass[sim,1, cate] = fn_f1score_class(Yc.new, pred1.new, cate)
+  TestF1ScoreClass[sim,2, cate] = fn_f1score_class(Yc.new, pred2.new, cate)
+  TestF1ScoreClass[sim,3, cate] = fn_f1score_class(Yc.new, pred3.new, cate)
+  TestF1ScoreClass[sim,4, cate] = fn_f1score_class(Yc.new, clase.new, cate)
+}
+for(rep in 1:4){
+  FitF1ScoreMacroAve[sim, rep] = mean(FitF1ScoreClass[sim, rep,]) 
+  TestF1ScoreMacroAve[sim,rep] = mean(TestF1ScoreClass[sim,rep,]) 
+}
+##--------------------------------------------------
+}## END sim 
+##--------------------------------------------------
+```
+
+\newpage
+# Results 
+
+## Accuracy Rate 
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+columna = c("rep1","rep2","rep3","ensemble")
+renglon = c("fit_mean","fit_sd","test_mean","test_sd")
+
+summary(FitAccuracy) 
+apply(FitAccuracy,2,"sd")
+summary(TestAccuracy)
+apply(TestAccuracy,2,"sd")
+
+RESaccuracy <- rbind(apply(FitAccuracy,2,"mean"), apply(FitAccuracy,2,"sd"),
+                     apply(TestAccuracy,2,"mean"),apply(TestAccuracy,2,"sd"))
+colnames(RESaccuracy) = columna
+rownames(RESaccuracy) = renglon
+write.csv(RESaccuracy, file=paste0(archivo,"_accuracy",".csv"))
+```
+
+\newpage
+## Precision Macro Average
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+summary(FitPrecisionMacroAve) 
+apply(FitPrecisionMacroAve,2,"sd")
+summary(TestPrecisionMacroAve)
+apply(TestPrecisionMacroAve,2,"sd")
+
+RESprecision <- rbind(apply(FitPrecisionMacroAve,2,"mean"), apply(FitPrecisionMacroAve,2,"sd"),
+                      apply(TestPrecisionMacroAve,2,"mean"),apply(TestPrecisionMacroAve,2,"sd"))
+colnames(RESprecision) = columna
+rownames(RESprecision) = renglon
+write.csv(RESprecision, file=paste0(archivo,"_precision",".csv"))
+```
+
+\newpage
+## Recall Macro Average
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+summary(FitRecallMacroAve) 
+apply(FitRecallMacroAve,2,"sd")
+summary(TestRecallMacroAve)
+apply(TestRecallMacroAve,2,"sd")
+
+RESrecall <- rbind(apply(FitRecallMacroAve,2,"mean"), apply(FitRecallMacroAve,2,"sd"),
+                   apply(TestRecallMacroAve,2,"mean"),apply(TestRecallMacroAve,2,"sd"))
+colnames(RESrecall) = columna
+rownames(RESrecall) = renglon
+write.csv(RESrecall, file=paste0(archivo,"_recall",".csv"))
+```
+
+\newpage
+## F1-Score Macro Average
+
+```{r, echo=TRUE, eval=TRUE, fig.show="hold", include=TRUE, out.width="100%", warning=FALSE, message=FALSE} 
+summary(FitF1ScoreMacroAve) 
+apply(FitF1ScoreMacroAve,2,"sd")
+summary(TestF1ScoreMacroAve)
+apply(TestF1ScoreMacroAve,2,"sd")
+
+RESf1score <- rbind(apply(FitF1ScoreMacroAve,2,"mean"), apply(FitF1ScoreMacroAve,2,"sd"),
+                    apply(TestF1ScoreMacroAve,2,"mean"),apply(TestF1ScoreMacroAve,2,"sd"))
+colnames(RESf1score) = columna
+rownames(RESf1score) = renglon
+write.csv(RESf1score, file=paste0(archivo,"_f1score",".csv"))
+```
+
