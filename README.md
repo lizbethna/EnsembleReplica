@@ -45,6 +45,17 @@ FOLDERS for section 6. "EGG data-based experiments":
 
 ##--------------------------------------------------
 
+Base classification models:
+1. GBM: generalized boosted regression models.
+2. MLR: multinomial linear regression. 
+3. RF: Random Forest. 
+4. CART: classification and regression trees.
+5. SVL linear: support vector machine SVM with linear kernel.
+6. SVL poly3: support vector machine SVM with polynomial kernel of degree d=3. 
+7. SVL radial: support vector machine SVM with radial kernel.
+
+##--------------------------------------------------
+
 To run the files, do the following.
  
 1.- Install the packages necessary to run the R files. These are indicated in the R file. 
