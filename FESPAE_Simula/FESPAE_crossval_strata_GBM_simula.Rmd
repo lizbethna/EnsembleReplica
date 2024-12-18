@@ -426,8 +426,10 @@ apply(FitAccuracy,2,"sd")
 summary(TestAccuracy)
 apply(TestAccuracy,2,"sd")
 
-RESaccuracy <- rbind(apply(FitAccuracy,2,"mean"), apply(FitAccuracy,2,"sd"),
-                     apply(TestAccuracy,2,"mean"),apply(TestAccuracy,2,"sd"))
+RESaccuracy <- rbind(apply(FitAccuracy,2,"mean", na.rm=TRUE), 
+                     apply(FitAccuracy,2,"sd", na.rm=TRUE),
+                     apply(TestAccuracy,2,"mean", na.rm=TRUE),
+                     apply(TestAccuracy,2,"sd", na.rm=TRUE))
 colnames(RESaccuracy) = columna
 rownames(RESaccuracy) = renglon
 write.csv(RESaccuracy, file=paste0(archivo,"_accuracy",".csv"))
@@ -442,8 +444,10 @@ apply(FitPrecisionMacroAve,2,"sd")
 summary(TestPrecisionMacroAve)
 apply(TestPrecisionMacroAve,2,"sd")
 
-RESprecision <- rbind(apply(FitPrecisionMacroAve,2,"mean"), apply(FitPrecisionMacroAve,2,"sd"),
-                      apply(TestPrecisionMacroAve,2,"mean"),apply(TestPrecisionMacroAve,2,"sd"))
+RESprecision <- rbind(apply(FitPrecisionMacroAve,2,"mean", na.rm=TRUE), 
+                      apply(FitPrecisionMacroAve,2,"sd", na.rm=TRUE),
+                      apply(TestPrecisionMacroAve,2,"mean", na.rm=TRUE),
+                      apply(TestPrecisionMacroAve,2,"sd", na.rm=TRUE))
 colnames(RESprecision) = columna
 rownames(RESprecision) = renglon
 write.csv(RESprecision, file=paste0(archivo,"_precision",".csv"))
@@ -458,8 +462,10 @@ apply(FitRecallMacroAve,2,"sd")
 summary(TestRecallMacroAve)
 apply(TestRecallMacroAve,2,"sd")
 
-RESrecall <- rbind(apply(FitRecallMacroAve,2,"mean"), apply(FitRecallMacroAve,2,"sd"),
-                   apply(TestRecallMacroAve,2,"mean"),apply(TestRecallMacroAve,2,"sd"))
+RESrecall <- rbind(apply(FitRecallMacroAve,2,"mean", na.rm=TRUE), 
+                   apply(FitRecallMacroAve,2,"sd", na.rm=TRUE),
+                   apply(TestRecallMacroAve,2,"mean", na.rm=TRUE),
+                   apply(TestRecallMacroAve,2,"sd", na.rm=TRUE))
 colnames(RESrecall) = columna
 rownames(RESrecall) = renglon
 write.csv(RESrecall, file=paste0(archivo,"_recall",".csv"))
@@ -474,8 +480,10 @@ apply(FitF1ScoreMacroAve,2,"sd")
 summary(TestF1ScoreMacroAve)
 apply(TestF1ScoreMacroAve,2,"sd")
 
-RESf1score <- rbind(apply(FitF1ScoreMacroAve,2,"mean"), apply(FitF1ScoreMacroAve,2,"sd"),
-                    apply(TestF1ScoreMacroAve,2,"mean"),apply(TestF1ScoreMacroAve,2,"sd"))
+RESf1score <- rbind(apply(FitF1ScoreMacroAve,2,"mean", na.rm=TRUE), 
+                    apply(FitF1ScoreMacroAve,2,"sd", na.rm=TRUE),
+                    apply(TestF1ScoreMacroAve,2,"mean", na.rm=TRUE),
+                    apply(TestF1ScoreMacroAve,2,"sd", na.rm=TRUE))
 colnames(RESf1score) = columna
 rownames(RESf1score) = renglon
 write.csv(RESf1score, file=paste0(archivo,"_f1score",".csv"))

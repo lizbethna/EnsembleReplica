@@ -464,8 +464,10 @@ apply(FitF1ScoreMacroAve,2,"sd")
 summary(TestF1ScoreMacroAve)
 apply(TestF1ScoreMacroAve,2,"sd")
 
-RESf1score <- rbind(apply(FitF1ScoreMacroAve,2,"mean"), apply(FitF1ScoreMacroAve,2,"sd"),
-                    apply(TestF1ScoreMacroAve,2,"mean"),apply(TestF1ScoreMacroAve,2,"sd"))
+RESf1score <- rbind(apply(FitF1ScoreMacroAve,2,"mean",na.rm=TRUE), 
+                    apply(FitF1ScoreMacroAve,2,"sd",na.rm=TRUE),
+                    apply(TestF1ScoreMacroAve,2,"mean",na.rm=TRUE),
+                    apply(TestF1ScoreMacroAve,2,"sd",na.rm=TRUE))
 colnames(RESf1score) = columna
 rownames(RESf1score) = renglon
 write.csv(RESf1score, file=paste0(archivo,"_f1score",".csv"))
