@@ -69,3 +69,10 @@ This is the address where the files are in.
 
 ##--------------------------------------------------
 
+This research was funded by Ministry of Science, Innovation and Universities - Spain, and State Research Agency - Spain (Project PID2021-122209OB-C32), 
+funded by MICIU/AEI/10.13039/501100011033 and European Union (European Regional Development Fund).
+
+
+[LogoSolo.pdf](https://github.com/user-attachments/files/23808454/LogoSolo.pdf)
+
+
